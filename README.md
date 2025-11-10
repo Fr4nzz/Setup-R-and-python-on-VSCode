@@ -43,6 +43,13 @@ curl -fsSL https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode
 curl -fsSL https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/install.sh | bash -s -- --package-manager=r2u
 ```
 
+**Configure Existing Installation** (already have VSCode/R/Python installed):
+```bash
+# The script automatically detects existing installations and skips them
+# It will still configure VSCode settings, extensions, and keybindings
+curl -fsSL https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/install.sh | bash
+```
+
 ### Windows
 
 **PowerShell (Run as Administrator)**:
@@ -125,6 +132,31 @@ Parameters:
   - **R**: `Ctrl+Enter` (run line/selection), `Ctrl+Shift+Enter` (run chunk)
   - **Python**: `Ctrl+Enter` (run line/selection)
   - **Shiny**: `F5` or play button to run app
+
+## Already Have Some Tools Installed?
+
+**The script automatically detects existing installations!** If you already have VSCode, R, or Python installed:
+
+✅ **What the script does:**
+- Detects existing installations and skips reinstalling them
+- Shows success messages for already-installed tools
+- **Still installs missing VSCode extensions** (REditorSupport.r, Posit.shiny, ms-python.python, etc.)
+- **Still configures VSCode settings** (httpgd plots, radian terminal, interpreter paths)
+- **Still sets up keybindings** (Ctrl+Enter for R/Python execution)
+
+**Example scenarios:**
+
+| What You Have | What the Script Does |
+|---------------|---------------------|
+| VSCode + R + Python installed, but not configured | Skips installation, configures everything |
+| VSCode + R installed, need Python | Skips VSCode/R, installs Python, configures all |
+| Everything installed, just need Shiny support | Skips installation, adds Posit.shiny extension + settings |
+| Fresh system | Installs and configures everything |
+
+**Simply run the script** - it will detect what you have and configure what's needed:
+```bash
+./install.sh
+```
 
 ## Post-Installation
 
