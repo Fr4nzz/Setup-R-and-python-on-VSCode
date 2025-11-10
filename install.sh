@@ -424,7 +424,8 @@ install_r_packages() {
 
   log_info "Installing R packages (languageserver, httpgd, shiny)..."
 
-  Rscript --vanilla -e '
+  # Use --quiet instead of --vanilla so Rprofile.site is read
+  Rscript --quiet --no-save -e '
     packages <- c("languageserver", "httpgd", "shiny")
     for (pkg in packages) {
       if (!requireNamespace(pkg, quietly = TRUE)) {
