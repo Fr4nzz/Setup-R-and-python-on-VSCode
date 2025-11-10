@@ -205,10 +205,10 @@ function Install-R-Packages {
         return
     }
 
-    Write-Info "Installing R packages (languageserver, httpgd, shiny)..."
+    Write-Info "Installing R packages (languageserver, httpgd, shiny, shinyWidgets)..."
 
     $rScript = @'
-packages <- c("languageserver", "httpgd", "shiny")
+packages <- c("languageserver", "httpgd", "shiny", "shinyWidgets")
 for (pkg in packages) {
   if (!requireNamespace(pkg, quietly = TRUE)) {
     cat(sprintf("Installing %s...\n", pkg))
@@ -356,7 +356,7 @@ function Configure-VSCode {
             $settings["r.rterm.windows"] = $radianPath
         }
 
-        $settings["r.alwaysUseActiveTerminal"] = $true
+        $settings["r.alwaysUseActiveTerminal"] = $false
         $settings["r.bracketedPaste"] = $true
         $settings["r.plot.useHttpgd"] = $true
         $settings["r.sessionWatcher"] = $true

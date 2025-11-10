@@ -422,11 +422,11 @@ install_r_packages() {
     return 0
   fi
 
-  log_info "Installing R packages (languageserver, httpgd, shiny)..."
+  log_info "Installing R packages (languageserver, httpgd, shiny, shinyWidgets)..."
 
   # Use --quiet instead of --vanilla so Rprofile.site is read
   Rscript --quiet --no-save -e '
-    packages <- c("languageserver", "httpgd", "shiny")
+    packages <- c("languageserver", "httpgd", "shiny", "shinyWidgets")
     for (pkg in packages) {
       if (!requireNamespace(pkg, quietly = TRUE)) {
         cat(sprintf("Installing %s...\n", pkg))
@@ -630,7 +630,7 @@ configure_vscode() {
       if [ "$OS_TYPE" = "macos" ]; then
         jq '. + {
           "r.rterm.mac": "'"$RADIAN_PATH"'",
-          "r.alwaysUseActiveTerminal": true,
+          "r.alwaysUseActiveTerminal": false,
           "r.bracketedPaste": true,
           "r.plot.useHttpgd": true,
           "r.sessionWatcher": true,
@@ -642,7 +642,7 @@ configure_vscode() {
       else
         jq '. + {
           "r.rterm.linux": "'"$RADIAN_PATH"'",
-          "r.alwaysUseActiveTerminal": true,
+          "r.alwaysUseActiveTerminal": false,
           "r.bracketedPaste": true,
           "r.plot.useHttpgd": true,
           "r.sessionWatcher": true,
@@ -654,7 +654,7 @@ configure_vscode() {
       fi
     else
       jq '. + {
-        "r.alwaysUseActiveTerminal": true,
+        "r.alwaysUseActiveTerminal": false,
         "r.bracketedPaste": true,
         "r.plot.useHttpgd": true,
         "r.sessionWatcher": true,
