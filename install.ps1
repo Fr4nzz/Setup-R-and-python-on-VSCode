@@ -219,7 +219,8 @@ for (pkg in packages) {
 }
 '@
 
-    $rScript | R --vanilla --slave
+    # Use --quiet instead of --vanilla so Rprofile is read
+    $rScript | R --quiet --no-save --slave
 
     Write-Success "R packages installed"
 }
@@ -235,7 +236,7 @@ function Install-Radian {
         return
     }
 
-    Write-Info "Installing radian (enhanced R console)..."
+    Write-Info "Installing radian (enhanced R console) and watchdog (for Shiny devmode)..."
 
     # Ensure pip is available
     if (-not (Test-Command python)) {
@@ -244,8 +245,8 @@ function Install-Radian {
         $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
     }
 
-    # Install radian
-    python -m pip install --user radian
+    # Install radian and watchdog
+    python -m pip install --user radian watchdog
 
     # Add Python scripts to PATH
     $pythonScripts = "$env:USERPROFILE\AppData\Roaming\Python\Python*\Scripts"

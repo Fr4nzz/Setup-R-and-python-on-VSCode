@@ -451,7 +451,7 @@ install_radian() {
     return 0
   fi
 
-  log_info "Installing radian (enhanced R console)..."
+  log_info "Installing radian (enhanced R console) and watchdog (for Shiny devmode)..."
 
   # Ensure pip is available
   if ! command_exists pip3 && ! command_exists pip; then
@@ -472,11 +472,11 @@ install_radian() {
     esac
   fi
 
-  # Install radian
+  # Install radian and watchdog (for Shiny devmode file watching)
   if command_exists pip3; then
-    pip3 install --user radian
+    pip3 install --user radian watchdog
   elif command_exists pip; then
-    pip install --user radian
+    pip install --user radian watchdog
   fi
 
   # Add ~/.local/bin to PATH if not already there

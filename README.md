@@ -122,6 +122,7 @@ Parameters:
   - `httpgd` - Interactive plot viewer in VSCode
   - `shiny` - Web application framework
 - **Radian** (optional): Enhanced R console with syntax highlighting
+- **Watchdog** (optional): File system monitoring for Shiny devmode autoreload
 - **Binary Package Manager**:
   - **PPM** (default): Works on all platforms
   - **r2u + bspm** (Ubuntu): APT-based, faster on Ubuntu
