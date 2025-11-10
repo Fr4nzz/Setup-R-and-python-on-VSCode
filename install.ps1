@@ -144,10 +144,17 @@ function Install-VSCode {
     }
 }
 
-# Find R installation directory and add to PATH
-function Find-And-Add-R-To-Path {
+# Script-level variable to store selected R bin path
+$script:RBinPath = $null
+
+# Find all R installations and let user choose
+function Find-And-Select-R {
+    param(
+        [bool]$Interactive = $true
+    )
+
     # Common R installation paths on Windows
-    $rPaths = @(
+    $searchPaths = @(
         "$env:ProgramFiles\R\*\bin\x64",
         "$env:ProgramFiles\R\*\bin",
         "${env:ProgramFiles(x86)}\R\*\bin\x64",
@@ -156,39 +163,118 @@ function Find-And-Add-R-To-Path {
         "C:\Program Files\R\*\bin"
     )
 
-    foreach ($pattern in $rPaths) {
-        $found = Get-Item $pattern -ErrorAction SilentlyContinue | Sort-Object -Property Name -Descending | Select-Object -First 1
+    # Find all R installations
+    $allRPaths = @()
+    foreach ($pattern in $searchPaths) {
+        $found = Get-Item $pattern -ErrorAction SilentlyContinue
         if ($found) {
-            $rBinPath = $found.FullName
-            Write-Info "Found R at: $rBinPath"
-
-            # Add to current session PATH
-            if ($env:Path -notlike "*$rBinPath*") {
-                $env:Path = "$rBinPath;$env:Path"
-                Write-Info "Added R to current session PATH"
+            foreach ($path in $found) {
+                # Avoid duplicates
+                if ($allRPaths -notcontains $path.FullName) {
+                    $allRPaths += $path.FullName
+                }
             }
-
-            # Add to user PATH permanently
-            $userPath = [System.Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::User)
-            if ($userPath -notlike "*$rBinPath*") {
-                [System.Environment]::SetEnvironmentVariable("Path", "$userPath;$rBinPath", [System.EnvironmentVariableTarget]::User)
-                Write-Info "Added R to user PATH permanently"
-            }
-
-            return $rBinPath
         }
     }
 
-    return $null
+    if ($allRPaths.Count -eq 0) {
+        return $null
+    }
+
+    # Sort by version (descending) - latest first
+    $allRPaths = $allRPaths | Sort-Object -Descending
+
+    $selectedPath = $null
+
+    # If multiple R versions found and interactive mode
+    if ($allRPaths.Count -gt 1 -and $Interactive) {
+        Write-Host ""
+        Write-Host "[INFO] Multiple R installations found:" -ForegroundColor Cyan
+        for ($i = 0; $i -lt $allRPaths.Count; $i++) {
+            $path = $allRPaths[$i]
+            # Extract version from path (e.g., R-4.3.2)
+            $version = "unknown"
+            if ($path -match "R[/\\]R-([0-9.]+)[/\\]") {
+                $version = $matches[1]
+            }
+            Write-Host "  [$($i + 1)] R $version - $path" -ForegroundColor White
+        }
+        Write-Host ""
+
+        $defaultChoice = 1
+        $prompt = "Select R version to use (1-$($allRPaths.Count)) [default: $defaultChoice (latest)]"
+        $userInput = Read-Host $prompt
+
+        if ([string]::IsNullOrWhiteSpace($userInput)) {
+            $selection = $defaultChoice
+        } else {
+            $selection = [int]$userInput
+        }
+
+        if ($selection -ge 1 -and $selection -le $allRPaths.Count) {
+            $selectedPath = $allRPaths[$selection - 1]
+        } else {
+            Write-Warn "Invalid selection. Using latest version (default)."
+            $selectedPath = $allRPaths[0]
+        }
+    } else {
+        # Single installation or non-interactive mode - use latest (first in sorted array)
+        $selectedPath = $allRPaths[0]
+    }
+
+    Write-Info "Selected R at: $selectedPath"
+
+    # Ask if user wants to add to PATH (default no)
+    $addToPath = $false
+    if ($Interactive) {
+        Write-Host ""
+        $pathPrompt = "Add R to PATH environment variable? (y/N) [default: N]"
+        $pathInput = Read-Host $pathPrompt
+        $addToPath = ($pathInput -eq "y" -or $pathInput -eq "Y")
+    }
+
+    if ($addToPath) {
+        # Add to current session PATH
+        if ($env:Path -notlike "*$selectedPath*") {
+            $env:Path = "$selectedPath;$env:Path"
+            Write-Info "Added R to current session PATH"
+        }
+
+        # Add to user PATH permanently
+        $userPath = [System.Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::User)
+        if ($userPath -notlike "*$selectedPath*") {
+            [System.Environment]::SetEnvironmentVariable("Path", "$userPath;$selectedPath", [System.EnvironmentVariableTarget]::User)
+            Write-Success "Added R to user PATH permanently"
+        }
+    } else {
+        Write-Info "R will not be added to PATH (you can add it manually later if needed)"
+    }
+
+    return $selectedPath
+}
+
+# Helper function to get Rscript command (either from PATH or using stored path)
+function Get-RscriptCommand {
+    if ($script:RBinPath) {
+        return Join-Path $script:RBinPath "Rscript.exe"
+    } elseif (Test-Command Rscript) {
+        return "Rscript"
+    } else {
+        return $null
+    }
 }
 
 # Install R
 function Install-R {
+    param(
+        [bool]$Interactive = $true
+    )
+
     if (-not $InstallR) {
         return
     }
 
-    # Check for Rscript (preferred over R due to PowerShell alias conflict)
+    # Check for Rscript in PATH first
     if (Test-Command Rscript) {
         try {
             $rVersion = & Rscript --version 2>&1 | Select-String "R version" | Select-Object -First 1
@@ -205,18 +291,22 @@ function Install-R {
 
     # Rscript not in PATH, but R might be installed - search for it
     Write-Info "Rscript not in PATH, checking for R installation..."
-    $rBinPath = Find-And-Add-R-To-Path
-    if ($rBinPath -and (Test-Command Rscript)) {
-        try {
-            $rVersion = & Rscript --version 2>&1 | Select-String "R version" | Select-Object -First 1
-            if (-not $rVersion) {
-                $rVersion = "installed"
+    $rBinPath = Find-And-Select-R -Interactive $Interactive
+    if ($rBinPath) {
+        $script:RBinPath = $rBinPath
+        $rscriptCmd = Get-RscriptCommand
+        if ($rscriptCmd) {
+            try {
+                $rVersion = & $rscriptCmd --version 2>&1 | Select-String "R version" | Select-Object -First 1
+                if (-not $rVersion) {
+                    $rVersion = "installed"
+                }
+                Write-Success "R is already installed ($rVersion)"
+                return
+            } catch {
+                Write-Success "R is already installed"
+                return
             }
-            Write-Success "R is already installed ($rVersion)"
-            return
-        } catch {
-            Write-Success "R is already installed"
-            return
         }
     }
 
@@ -226,16 +316,19 @@ function Install-R {
     # Refresh environment
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
 
-    # Try to find R and add to PATH if not found
+    # Try to find R installation if not in PATH
     if (-not (Test-Command Rscript)) {
         Write-Info "Rscript not in PATH, searching for R installation..."
-        $rBinPath = Find-And-Add-R-To-Path
+        $rBinPath = Find-And-Select-R -Interactive $Interactive
         if ($rBinPath) {
-            Write-Success "R found and added to PATH"
+            $script:RBinPath = $rBinPath
+            Write-Success "R found and configured"
         }
     }
 
-    if ((Test-Command Rscript) -or (Test-Command R)) {
+    # Verify installation
+    $rscriptCmd = Get-RscriptCommand
+    if ($rscriptCmd) {
         Write-Success "R installed successfully"
     } else {
         Write-Error-Message "R installation failed - could not find Rscript"
@@ -280,10 +373,17 @@ function Install-R-Packages {
 
     Write-Info "Installing R packages (languageserver, httpgd, shiny, shinyWidgets)..."
 
+    # Get Rscript command (from PATH or using full path)
+    $rscriptCmd = Get-RscriptCommand
+    if (-not $rscriptCmd) {
+        Write-Error-Message "Rscript not found. Cannot install R packages."
+        exit 1
+    }
+
     # Use Rscript with -e parameter (more reliable than piping on Windows)
     $rCode = "packages <- c('languageserver', 'httpgd', 'shiny', 'shinyWidgets'); for (pkg in packages) { if (!requireNamespace(pkg, quietly = TRUE)) { cat(sprintf('Installing %s...\n', pkg)); install.packages(pkg, quiet = TRUE) } else { cat(sprintf('%s is already installed\n', pkg)) } }"
 
-    & Rscript -e $rCode
+    & $rscriptCmd -e $rCode
 
     Write-Success "R packages installed"
 }
@@ -562,7 +662,7 @@ function Main {
     # Install components
     Install-Chocolatey
     Install-VSCode
-    Install-R
+    Install-R -Interactive (-not $NonInteractive)
     Configure-R-Packages
     Install-R-Packages
     Install-Radian
@@ -579,14 +679,15 @@ function Main {
 
     if ($InstallR) {
         Write-Host "R Environment:"
-        if (Test-Command Rscript) {
+        $rscriptCmd = Get-RscriptCommand
+        if ($rscriptCmd) {
             try {
-                $rVersion = & Rscript --version 2>&1 | Select-String "R version" | Select-Object -First 1
+                $rVersion = & $rscriptCmd --version 2>&1 | Select-String "R version" | Select-Object -First 1
                 Write-Host "  - R version: $rVersion"
             } catch {
                 Write-Host "  - R: installed"
             }
-        } elseif (Test-Command R) {
+        } else {
             Write-Host "  - R: installed"
         }
         if (Test-Command radian) {
