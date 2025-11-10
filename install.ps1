@@ -349,8 +349,9 @@ function Configure-VSCode {
 
     # Configure R settings
     if ($InstallR) {
-        $radianPath = (Get-Command radian -ErrorAction SilentlyContinue)?.Source
-        if ($radianPath) {
+        $radianCmd = Get-Command radian -ErrorAction SilentlyContinue
+        if ($radianCmd) {
+            $radianPath = $radianCmd.Source
             # Escape backslashes for JSON
             $radianPath = $radianPath -replace '\\', '\\'
             $settings["r.rterm.windows"] = $radianPath
@@ -370,8 +371,9 @@ function Configure-VSCode {
 
     # Configure Python settings
     if ($InstallPython) {
-        $pythonPath = (Get-Command python -ErrorAction SilentlyContinue)?.Source
-        if ($pythonPath) {
+        $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+        if ($pythonCmd) {
+            $pythonPath = $pythonCmd.Source
             # Escape backslashes for JSON
             $pythonPath = $pythonPath -replace '\\', '\\'
             $settings["python.defaultInterpreterPath"] = $pythonPath
