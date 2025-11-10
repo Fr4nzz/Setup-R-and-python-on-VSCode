@@ -196,6 +196,16 @@ install_vscode() {
         sudo sh -c 'echo -e "[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" > /etc/yum.repos.d/vscode.repo'
         sudo dnf check-update || true
         sudo dnf install -y code
+      elif [ "$DISTRO" = "arch" ] || [ "$DISTRO" = "manjaro" ]; then
+        # Install from AUR using yay or paru if available, otherwise use official repo
+        if command_exists yay; then
+          yay -S --noconfirm visual-studio-code-bin
+        elif command_exists paru; then
+          paru -S --noconfirm visual-studio-code-bin
+        else
+          log_warn "AUR helper (yay/paru) not found. Installing code from official repo (OSS version)..."
+          sudo pacman -S --noconfirm code
+        fi
       else
         log_warn "Unknown Linux distribution. Please install VSCode manually from https://code.visualstudio.com/"
       fi
@@ -244,6 +254,8 @@ install_r() {
           sudo apt-get install -y r-base r-base-dev
         elif [ "$DISTRO" = "fedora" ] || [ "$DISTRO" = "rhel" ] || [ "$DISTRO" = "centos" ]; then
           sudo dnf install -y R
+        elif [ "$DISTRO" = "arch" ] || [ "$DISTRO" = "manjaro" ]; then
+          sudo pacman -S --noconfirm r
         else
           log_warn "Unknown Linux distribution. Please install R manually from https://cloud.r-project.org/"
         fi
@@ -418,8 +430,12 @@ install_radian() {
   if ! command_exists pip3 && ! command_exists pip; then
     case "$OS_TYPE" in
       linux)
-        sudo apt-get update -qq
-        sudo apt-get install -y python3-pip
+        if [ "$DISTRO" = "arch" ] || [ "$DISTRO" = "manjaro" ]; then
+          sudo pacman -S --noconfirm python-pip
+        else
+          sudo apt-get update -qq
+          sudo apt-get install -y python3-pip
+        fi
         ;;
       macos)
         if command_exists brew; then
@@ -474,6 +490,8 @@ install_python() {
           sudo apt-get install -y python3 python3-pip python3-venv
         elif [ "$DISTRO" = "fedora" ] || [ "$DISTRO" = "rhel" ] || [ "$DISTRO" = "centos" ]; then
           sudo dnf install -y python3 python3-pip
+        elif [ "$DISTRO" = "arch" ] || [ "$DISTRO" = "manjaro" ]; then
+          sudo pacman -S --noconfirm python python-pip
         fi
         ;;
       macos)
@@ -558,6 +576,8 @@ configure_vscode() {
           sudo apt-get install -y jq
         elif [ "$DISTRO" = "fedora" ] || [ "$DISTRO" = "rhel" ] || [ "$DISTRO" = "centos" ]; then
           sudo dnf install -y jq
+        elif [ "$DISTRO" = "arch" ] || [ "$DISTRO" = "manjaro" ]; then
+          sudo pacman -S --noconfirm jq
         fi
         ;;
       macos)

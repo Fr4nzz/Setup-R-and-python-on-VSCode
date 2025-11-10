@@ -236,7 +236,9 @@ If you prefer not to use the automated scripts, see [MANUAL_INSTALL.md](MANUAL_I
 ## Requirements
 
 ### Linux
-- Ubuntu 20.04+ (recommended) or other Debian-based distributions
+- **Ubuntu/Debian**: 20.04+ (recommended)
+- **Arch Linux/Manjaro**: Latest
+- **Fedora/RHEL/CentOS**: Recent versions
 - `curl` or `wget`
 - `sudo` access
 
