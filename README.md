@@ -65,6 +65,19 @@ irm https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/i
 .\install.ps1 -PythonOnly
 ```
 
+### WSL (Windows Subsystem for Linux)
+
+**For WSL users**: Install VSCode on Windows first, then run the Linux script from your WSL terminal:
+
+```bash
+# 1. Install VSCode on Windows: https://code.visualstudio.com/
+# 2. Install the "Remote - WSL" extension in VSCode
+# 3. Run this from your WSL terminal:
+curl -fsSL https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/install.sh | bash
+```
+
+The script automatically detects WSL and guides you through the setup. See [Troubleshooting → Running in WSL](#running-in-wsl-windows-subsystem-for-linux) for details.
+
 ## Command-Line Options
 
 ### Linux/macOS (install.sh)
@@ -254,6 +267,34 @@ Ensure `~/.local/bin` is in your PATH:
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
 ```
+
+### Running in WSL (Windows Subsystem for Linux)
+
+**The script automatically detects WSL!** Here's how it works:
+
+1. **VSCode Installation**:
+   - Install VSCode on **Windows** (not in WSL): https://code.visualstudio.com/
+   - Install the **Remote - WSL** extension in VSCode
+   - The `code` command will automatically be available in WSL
+
+2. **Running the Script**:
+   ```bash
+   # Run from your WSL terminal (Ubuntu, Debian, etc.)
+   curl -fsSL https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/install.sh | bash
+   ```
+
+3. **What Happens**:
+   - If `code` is found (VSCode already set up): Script configures everything ✅
+   - If `code` is NOT found: Script provides setup instructions and skips VSCode installation
+
+4. **R and Python**: Installed in WSL (Linux side), configured to work with Windows VSCode
+
+**Recommended WSL Setup**:
+- Install VSCode on Windows first
+- Install Remote-WSL extension
+- Open WSL terminal: `wsl` or use Windows Terminal
+- Run the installation script
+- Open your project: `code .` from WSL terminal
 
 ## Manual Installation
 
