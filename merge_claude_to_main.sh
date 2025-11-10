@@ -18,16 +18,57 @@ warn()  { echo "[WARN] $*" >&2; }
 error() { echo "[ERROR] $*" >&2; exit 1; }
 
 PUSH_AFTER=false
-if [[ ${1:-} == "--push" ]]; then
-  PUSH_AFTER=true
+ALLOW_DIRTY=false
+AUTOSTASH=false
+
+# Capture environment preferences before we override local vars
+_PUSH_AFTER_ENV="${PUSH_AFTER:-}"
+_ALLOW_DIRTY_ENV="${ALLOW_DIRTY:-}"
+_AUTOSTASH_ENV="${AUTOSTASH:-}"
+
+# Parse args
+for arg in "$@"; do
+  case "$arg" in
+    --push)        PUSH_AFTER=true ;;
+    --allow-dirty) ALLOW_DIRTY=true ;;
+    --autostash)   AUTOSTASH=true ;;
+  esac
+done
+
+# Apply env defaults (only if not set via args)
+if [[ "$PUSH_AFTER" == false && -n "$_PUSH_AFTER_ENV" ]]; then
+  case "${_PUSH_AFTER_ENV}" in 1|true|TRUE|True|yes|YES) PUSH_AFTER=true ;; esac
+fi
+if [[ "$ALLOW_DIRTY" == false && -n "$_ALLOW_DIRTY_ENV" ]]; then
+  case "${_ALLOW_DIRTY_ENV}" in 1|true|TRUE|True|yes|YES) ALLOW_DIRTY=true ;; esac
+fi
+if [[ "$AUTOSTASH" == false && -n "_AUTOSTASH_ENV" ]]; then
+  case "${_AUTOSTASH_ENV}" in 1|true|TRUE|True|yes|YES) AUTOSTASH=true ;; esac
 fi
 
 # Ensure we're in a git repo
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || error "Not inside a git repository"
 
-# Ensure working tree is clean to avoid accidental resets/merges over local changes
+# Ensure working tree is clean, unless allowed or autostash is enabled
+DIRTY=false
 if ! git diff --quiet || ! git diff --cached --quiet; then
-  error "Working tree is not clean. Commit or stash changes before running."
+  DIRTY=true
+fi
+
+STASH_MADE=false
+STASH_MARKER="auto-merge-$(date +%s)"
+if [[ "$DIRTY" == true ]]; then
+  if [[ "$AUTOSTASH" == true ]]; then
+    info "Autostashing local changes"
+    git stash push -u -k -m "$STASH_MARKER" || true
+    if git stash list | grep -q "$STASH_MARKER"; then
+      STASH_MADE=true
+    fi
+  elif [[ "$ALLOW_DIRTY" == true ]]; then
+    warn "Proceeding with dirty working tree as requested (--allow-dirty)."
+  else
+    error "Working tree is not clean. Commit, stash, rerun with --allow-dirty, or use --autostash."
+  fi
 fi
 
 # Ensure origin exists
@@ -95,3 +136,39 @@ if ${PUSH_AFTER}; then
 fi
 
 info "Done. ${MAIN_BRANCH} now contains ${CLAUDE_REMOTE_BRANCH}."
+
+# Restore stashed changes if we created a stash
+if [[ "$STASH_MADE" == true ]]; then
+  info "Restoring stashed local changes"
+  if ! git stash pop; then
+    warn "Conflicts occurred while applying stashed changes. Resolve and commit manually."
+  fi
+fi
+
+# -----------------------------------------------------------------------------
+# Quick one-liners to download and run this script anywhere
+#
+# Bash (merge locally):
+#   curl -fsSL https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/merge_claude_to_main.sh | bash
+#
+# Bash (merge and push):
+#   PUSH_AFTER=1 curl -fsSL https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/merge_claude_to_main.sh | bash
+#
+# Bash (allow dirty working tree):
+#   ALLOW_DIRTY=1 curl -fsSL https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/merge_claude_to_main.sh | bash
+#
+# Bash (autostash before merge):
+#   AUTOSTASH=1 curl -fsSL https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/merge_claude_to_main.sh | bash
+#
+# PowerShell (merge locally):
+#   iwr -useb https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/merge_claude_to_main.ps1 | iex
+#
+# PowerShell (merge and push):
+#   $env:PUSH_AFTER=1; iwr -useb https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/merge_claude_to_main.ps1 | iex
+#
+# PowerShell (allow dirty working tree):
+#   $env:ALLOW_DIRTY=1; iwr -useb https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/merge_claude_to_main.ps1 | iex
+#
+# PowerShell (autostash before merge):
+#   $env:AUTOSTASH=1; iwr -useb https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/merge_claude_to_main.ps1 | iex
+# -----------------------------------------------------------------------------
