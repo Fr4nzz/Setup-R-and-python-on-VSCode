@@ -336,13 +336,15 @@ function Install-R {
     }
 }
 
-# Configure R to use PPM
+# Configure R to use CRAN (Windows gets binaries by default, no PPM needed)
 function Configure-R-Packages {
     if (-not $InstallR) {
         return
     }
 
-    Write-Info "Configuring R to use Posit Public Package Manager (PPM)..."
+    # Note: Windows CRAN mirrors serve binaries by default, so we don't need PPM
+    # We'll just set a default CRAN mirror in .Rprofile for convenience
+    Write-Info "Configuring R to use CRAN mirror..."
 
     $rProfilePath = "$env:USERPROFILE\Documents\.Rprofile"
     $rProfileDir = Split-Path $rProfilePath -Parent
@@ -355,14 +357,14 @@ function Configure-R-Packages {
 local({
   options(
     repos = c(
-      CRAN = "https://packagemanager.posit.co/cran/latest"
+      CRAN = "https://cloud.r-project.org"
     )
   )
 })
 '@
 
     Set-Content -Path $rProfilePath -Value $rProfileContent
-    Write-Success "PPM configured in $rProfilePath"
+    Write-Success "CRAN mirror configured in $rProfilePath"
 }
 
 # Install R packages
@@ -380,8 +382,9 @@ function Install-R-Packages {
         exit 1
     }
 
-    # Use Rscript with -e parameter (more reliable than piping on Windows)
-    $rCode = "packages <- c('languageserver', 'httpgd', 'shiny', 'shinyWidgets'); for (pkg in packages) { if (!requireNamespace(pkg, quietly = TRUE)) { cat(sprintf('Installing %s...\n', pkg)); install.packages(pkg, quiet = TRUE) } else { cat(sprintf('%s is already installed\n', pkg)) } }"
+    # Use Rscript with -e parameter and explicit CRAN repo (Windows binaries by default)
+    # Pass repos parameter directly to ensure CRAN mirror is set even if .Rprofile isn't loaded
+    $rCode = "packages <- c('languageserver', 'httpgd', 'shiny', 'shinyWidgets'); for (pkg in packages) { if (!requireNamespace(pkg, quietly = TRUE)) { cat(sprintf('Installing %s...\n', pkg)); install.packages(pkg, repos = 'https://cloud.r-project.org', quiet = TRUE) } else { cat(sprintf('%s is already installed\n', pkg)) } }"
 
     & $rscriptCmd -e $rCode
 
@@ -411,12 +414,33 @@ function Install-Radian {
     # Install radian and watchdog
     python -m pip install --user radian watchdog
 
-    # Add Python scripts to PATH
-    $pythonScripts = "$env:USERPROFILE\AppData\Roaming\Python\Python*\Scripts"
-    $scriptPath = Get-Item $pythonScripts -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
-    if ($scriptPath -and $env:Path -notlike "*$scriptPath*") {
-        [System.Environment]::SetEnvironmentVariable("Path", $env:Path + ";$scriptPath", [System.EnvironmentVariableTarget]::User)
-        $env:Path += ";$scriptPath"
+    # Refresh PATH to get any updates
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+
+    # Add Python Scripts directory to PATH
+    $pythonScriptsPattern = "$env:USERPROFILE\AppData\Roaming\Python\Python*\Scripts"
+    $pythonScriptsPaths = Get-Item $pythonScriptsPattern -ErrorAction SilentlyContinue
+
+    if ($pythonScriptsPaths) {
+        # Get the most recent Python Scripts directory
+        $scriptPath = $pythonScriptsPaths | Sort-Object -Property Name -Descending | Select-Object -First 1 | Select-Object -ExpandProperty FullName
+
+        if ($scriptPath) {
+            Write-Info "Found Python Scripts at: $scriptPath"
+
+            # Add to current session PATH
+            if ($env:Path -notlike "*$scriptPath*") {
+                $env:Path = "$scriptPath;$env:Path"
+                Write-Info "Added Python Scripts to current session PATH"
+            }
+
+            # Add to user PATH permanently
+            $userPath = [System.Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::User)
+            if ($userPath -notlike "*$scriptPath*") {
+                [System.Environment]::SetEnvironmentVariable("Path", "$userPath;$scriptPath", [System.EnvironmentVariableTarget]::User)
+                Write-Info "Added Python Scripts to user PATH permanently"
+            }
+        }
     }
 
     if (Test-Command radian) {
@@ -504,8 +528,29 @@ function Configure-VSCode {
         Set-Content -Path $settingsFile -Value '{}'
     }
 
-    # Read existing settings
-    $settings = Get-Content $settingsFile -Raw | ConvertFrom-Json -AsHashtable -ErrorAction SilentlyContinue
+    # Read existing settings (handle PowerShell 5.1 compatibility)
+    $settingsJson = Get-Content $settingsFile -Raw
+
+    # Try to use -AsHashtable (PowerShell 6+), otherwise convert manually
+    $settings = $null
+    try {
+        # PowerShell 6+ has -AsHashtable parameter
+        if ($PSVersionTable.PSVersion.Major -ge 6) {
+            $settings = $settingsJson | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+        } else {
+            # PowerShell 5.1 - convert PSCustomObject to hashtable manually
+            $settingsObj = $settingsJson | ConvertFrom-Json -ErrorAction Stop
+            $settings = @{}
+            if ($settingsObj) {
+                $settingsObj.PSObject.Properties | ForEach-Object {
+                    $settings[$_.Name] = $_.Value
+                }
+            }
+        }
+    } catch {
+        $settings = @{}
+    }
+
     if (-not $settings) {
         $settings = @{}
     }
