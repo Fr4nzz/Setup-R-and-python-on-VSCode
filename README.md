@@ -121,6 +121,7 @@ Parameters:
   - `languageserver` - Code intelligence
   - `httpgd` - Interactive plot viewer in VSCode
   - `shiny` - Web application framework
+  - `shinyWidgets` - Enhanced UI widgets for Shiny apps
 - **Radian** (optional): Enhanced R console with syntax highlighting
 - **Watchdog** (optional): File system monitoring for Shiny devmode autoreload
 - **Binary Package Manager**:
