@@ -596,6 +596,13 @@ function Configure-VSCode {
         $settings["[python]"]["editor.inlineSuggest.enabled"] = $false
     }
 
+    # Configure Shiny settings (increase timeout for slower systems)
+    if ($InstallR) {
+        # Increase preview timeout to 30s (default 10s) to help with slow app startup
+        $settings["shiny.previewTimeout"] = 30
+        $settings["shiny.autoLaunchPreview"] = $true
+    }
+
     # Save settings
     $settings | ConvertTo-Json -Depth 10 | Set-Content -Path $settingsFile
 
