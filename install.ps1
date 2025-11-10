@@ -217,20 +217,10 @@ function Install-R-Packages {
 
     Write-Info "Installing R packages (languageserver, httpgd, shiny, shinyWidgets)..."
 
-    $rScript = @'
-packages <- c("languageserver", "httpgd", "shiny", "shinyWidgets")
-for (pkg in packages) {
-  if (!requireNamespace(pkg, quietly = TRUE)) {
-    cat(sprintf("Installing %s...\n", pkg))
-    install.packages(pkg, quiet = TRUE)
-  } else {
-    cat(sprintf("%s is already installed\n", pkg))
-  }
-}
-'@
+    # Use Rscript with -e parameter (more reliable than piping on Windows)
+    $rCode = "packages <- c('languageserver', 'httpgd', 'shiny', 'shinyWidgets'); for (pkg in packages) { if (!requireNamespace(pkg, quietly = TRUE)) { cat(sprintf('Installing %s...\n', pkg)); install.packages(pkg, quiet = TRUE) } else { cat(sprintf('%s is already installed\n', pkg)) } }"
 
-    # Use --quiet instead of --vanilla so Rprofile is read
-    $rScript | R --quiet --no-save --slave
+    & Rscript -e $rCode
 
     Write-Success "R packages installed"
 }
@@ -473,6 +463,9 @@ function Main {
     if (-not (Test-Administrator)) {
         Write-Error-Message "This script must be run as Administrator"
         Write-Host "Please right-click PowerShell and select 'Run as Administrator'"
+        Write-Host ""
+        Write-Host "Press any key to exit..."
+        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
         exit 1
     }
 
