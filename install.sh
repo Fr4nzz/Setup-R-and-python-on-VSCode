@@ -751,6 +751,13 @@ main() {
   echo "=========================================="
   echo ""
 
+  # Auto-detect non-interactive mode when stdin is not a TTY (e.g., piped from curl)
+  if [ "$NON_INTERACTIVE" = false ] && [ ! -t 0 ]; then
+    log_info "Detected non-interactive environment (stdin not a TTY)"
+    log_info "Enabling non-interactive mode automatically"
+    NON_INTERACTIVE=true
+  fi
+
   detect_system
 
   echo ""
@@ -771,6 +778,8 @@ main() {
       log_info "Installation cancelled"
       exit 0
     fi
+  else
+    log_info "Running in non-interactive mode - proceeding automatically"
   fi
 
   echo ""
