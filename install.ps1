@@ -150,10 +150,20 @@ function Install-R {
         return
     }
 
-    if (Test-Command R) {
-        $rVersion = (R --version 2>&1 | Select-String "R version" | Select-Object -First 1)
-        Write-Success "R is already installed ($rVersion)"
-        return
+    # Check for R or Rscript (R is a PowerShell alias conflict)
+    if ((Test-Command Rscript) -or (Test-Command R)) {
+        try {
+            $rVersion = & Rscript --version 2>&1 | Select-String "R version" | Select-Object -First 1
+            if (-not $rVersion) {
+                # Fallback if Rscript doesn't work
+                $rVersion = "installed"
+            }
+            Write-Success "R is already installed ($rVersion)"
+            return
+        } catch {
+            Write-Success "R is already installed"
+            return
+        }
     }
 
     Write-Info "Installing R..."
@@ -162,7 +172,7 @@ function Install-R {
     # Refresh environment
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
 
-    if (Test-Command R) {
+    if ((Test-Command Rscript) -or (Test-Command R)) {
         Write-Success "R installed successfully"
     } else {
         Write-Error-Message "R installation failed"
@@ -513,9 +523,15 @@ function Main {
 
     if ($InstallR) {
         Write-Host "R Environment:"
-        if (Test-Command R) {
-            $rVersion = (R --version 2>&1 | Select-String "R version" | Select-Object -First 1)
-            Write-Host "  - R version: $rVersion"
+        if (Test-Command Rscript) {
+            try {
+                $rVersion = & Rscript --version 2>&1 | Select-String "R version" | Select-Object -First 1
+                Write-Host "  - R version: $rVersion"
+            } catch {
+                Write-Host "  - R: installed"
+            }
+        } elseif (Test-Command R) {
+            Write-Host "  - R: installed"
         }
         if (Test-Command radian) {
             $radianPath = (Get-Command radian).Source
