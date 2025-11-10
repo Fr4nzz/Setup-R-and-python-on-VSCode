@@ -144,18 +144,72 @@ function Install-VSCode {
     }
 }
 
+# Find R installation directory and add to PATH
+function Find-And-Add-R-To-Path {
+    # Common R installation paths on Windows
+    $rPaths = @(
+        "$env:ProgramFiles\R\*\bin\x64",
+        "$env:ProgramFiles\R\*\bin",
+        "${env:ProgramFiles(x86)}\R\*\bin\x64",
+        "${env:ProgramFiles(x86)}\R\*\bin",
+        "C:\Program Files\R\*\bin\x64",
+        "C:\Program Files\R\*\bin"
+    )
+
+    foreach ($pattern in $rPaths) {
+        $found = Get-Item $pattern -ErrorAction SilentlyContinue | Sort-Object -Property Name -Descending | Select-Object -First 1
+        if ($found) {
+            $rBinPath = $found.FullName
+            Write-Info "Found R at: $rBinPath"
+
+            # Add to current session PATH
+            if ($env:Path -notlike "*$rBinPath*") {
+                $env:Path = "$rBinPath;$env:Path"
+                Write-Info "Added R to current session PATH"
+            }
+
+            # Add to user PATH permanently
+            $userPath = [System.Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::User)
+            if ($userPath -notlike "*$rBinPath*") {
+                [System.Environment]::SetEnvironmentVariable("Path", "$userPath;$rBinPath", [System.EnvironmentVariableTarget]::User)
+                Write-Info "Added R to user PATH permanently"
+            }
+
+            return $rBinPath
+        }
+    }
+
+    return $null
+}
+
 # Install R
 function Install-R {
     if (-not $InstallR) {
         return
     }
 
-    # Check for R or Rscript (R is a PowerShell alias conflict)
-    if ((Test-Command Rscript) -or (Test-Command R)) {
+    # Check for Rscript (preferred over R due to PowerShell alias conflict)
+    if (Test-Command Rscript) {
         try {
             $rVersion = & Rscript --version 2>&1 | Select-String "R version" | Select-Object -First 1
             if (-not $rVersion) {
-                # Fallback if Rscript doesn't work
+                $rVersion = "installed"
+            }
+            Write-Success "R is already installed ($rVersion)"
+            return
+        } catch {
+            Write-Success "R is already installed"
+            return
+        }
+    }
+
+    # Rscript not in PATH, but R might be installed - search for it
+    Write-Info "Rscript not in PATH, checking for R installation..."
+    $rBinPath = Find-And-Add-R-To-Path
+    if ($rBinPath -and (Test-Command Rscript)) {
+        try {
+            $rVersion = & Rscript --version 2>&1 | Select-String "R version" | Select-Object -First 1
+            if (-not $rVersion) {
                 $rVersion = "installed"
             }
             Write-Success "R is already installed ($rVersion)"
@@ -172,10 +226,19 @@ function Install-R {
     # Refresh environment
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
 
+    # Try to find R and add to PATH if not found
+    if (-not (Test-Command Rscript)) {
+        Write-Info "Rscript not in PATH, searching for R installation..."
+        $rBinPath = Find-And-Add-R-To-Path
+        if ($rBinPath) {
+            Write-Success "R found and added to PATH"
+        }
+    }
+
     if ((Test-Command Rscript) -or (Test-Command R)) {
         Write-Success "R installed successfully"
     } else {
-        Write-Error-Message "R installation failed"
+        Write-Error-Message "R installation failed - could not find Rscript"
         exit 1
     }
 }
