@@ -116,10 +116,17 @@ log_error() {
 detect_system() {
   OS="$(uname -s)"
   ARCH="$(uname -m)"
+  IS_WSL=false
 
   case "$OS" in
     Linux*)
       OS_TYPE="linux"
+
+      # Detect WSL (Windows Subsystem for Linux)
+      if grep -qiE "(microsoft|wsl)" /proc/version 2>/dev/null || [ -n "${WSL_DISTRO_NAME:-}" ]; then
+        IS_WSL=true
+      fi
+
       if [ -f /etc/os-release ]; then
         . /etc/os-release
         DISTRO="$ID"
@@ -153,7 +160,11 @@ detect_system() {
       ;;
   esac
 
-  log_info "Detected: $OS_TYPE ($DISTRO $DISTRO_VERSION) on $ARCH_TYPE"
+  if [ "$IS_WSL" = true ]; then
+    log_info "Detected: WSL - $OS_TYPE ($DISTRO $DISTRO_VERSION) on $ARCH_TYPE"
+  else
+    log_info "Detected: $OS_TYPE ($DISTRO $DISTRO_VERSION) on $ARCH_TYPE"
+  fi
 }
 
 # Check if command exists
@@ -170,6 +181,21 @@ install_vscode() {
 
   if command_exists code; then
     log_success "VSCode is already installed"
+    return 0
+  fi
+
+  # Special handling for WSL
+  if [ "$IS_WSL" = true ]; then
+    log_warn "Running in WSL (Windows Subsystem for Linux)"
+    log_warn "VSCode should be installed on Windows, not in WSL"
+    echo ""
+    echo "To set up VSCode for WSL:"
+    echo "  1. Install VSCode on Windows: https://code.visualstudio.com/"
+    echo "  2. Install the 'Remote - WSL' extension in VSCode"
+    echo "  3. The 'code' command will be available in WSL automatically"
+    echo "  4. Re-run this script after VSCode is set up"
+    echo ""
+    log_warn "Skipping VSCode installation in WSL"
     return 0
   fi
 

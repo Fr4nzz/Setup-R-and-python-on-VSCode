@@ -43,6 +43,13 @@ curl -fsSL https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode
 curl -fsSL https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/install.sh | bash -s -- --package-manager=r2u
 ```
 
+**Configure Existing Installation** (already have VSCode/R/Python installed):
+```bash
+# The script automatically detects existing installations and skips them
+# It will still configure VSCode settings, extensions, and keybindings
+curl -fsSL https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/install.sh | bash
+```
+
 ### Windows
 
 **PowerShell (Run as Administrator)**:
@@ -57,6 +64,19 @@ irm https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/i
 # or
 .\install.ps1 -PythonOnly
 ```
+
+### WSL (Windows Subsystem for Linux)
+
+**For WSL users**: Install VSCode on Windows first, then run the Linux script from your WSL terminal:
+
+```bash
+# 1. Install VSCode on Windows: https://code.visualstudio.com/
+# 2. Install the "Remote - WSL" extension in VSCode
+# 3. Run this from your WSL terminal:
+curl -fsSL https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/install.sh | bash
+```
+
+The script automatically detects WSL and guides you through the setup. See [Troubleshooting → Running in WSL](#running-in-wsl-windows-subsystem-for-linux) for details.
 
 ## Command-Line Options
 
@@ -125,6 +145,31 @@ Parameters:
   - **R**: `Ctrl+Enter` (run line/selection), `Ctrl+Shift+Enter` (run chunk)
   - **Python**: `Ctrl+Enter` (run line/selection)
   - **Shiny**: `F5` or play button to run app
+
+## Already Have Some Tools Installed?
+
+**The script automatically detects existing installations!** If you already have VSCode, R, or Python installed:
+
+✅ **What the script does:**
+- Detects existing installations and skips reinstalling them
+- Shows success messages for already-installed tools
+- **Still installs missing VSCode extensions** (REditorSupport.r, Posit.shiny, ms-python.python, etc.)
+- **Still configures VSCode settings** (httpgd plots, radian terminal, interpreter paths)
+- **Still sets up keybindings** (Ctrl+Enter for R/Python execution)
+
+**Example scenarios:**
+
+| What You Have | What the Script Does |
+|---------------|---------------------|
+| VSCode + R + Python installed, but not configured | Skips installation, configures everything |
+| VSCode + R installed, need Python | Skips VSCode/R, installs Python, configures all |
+| Everything installed, just need Shiny support | Skips installation, adds Posit.shiny extension + settings |
+| Fresh system | Installs and configures everything |
+
+**Simply run the script** - it will detect what you have and configure what's needed:
+```bash
+./install.sh
+```
 
 ## Post-Installation
 
@@ -222,6 +267,34 @@ Ensure `~/.local/bin` is in your PATH:
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
 ```
+
+### Running in WSL (Windows Subsystem for Linux)
+
+**The script automatically detects WSL!** Here's how it works:
+
+1. **VSCode Installation**:
+   - Install VSCode on **Windows** (not in WSL): https://code.visualstudio.com/
+   - Install the **Remote - WSL** extension in VSCode
+   - The `code` command will automatically be available in WSL
+
+2. **Running the Script**:
+   ```bash
+   # Run from your WSL terminal (Ubuntu, Debian, etc.)
+   curl -fsSL https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/install.sh | bash
+   ```
+
+3. **What Happens**:
+   - If `code` is found (VSCode already set up): Script configures everything ✅
+   - If `code` is NOT found: Script provides setup instructions and skips VSCode installation
+
+4. **R and Python**: Installed in WSL (Linux side), configured to work with Windows VSCode
+
+**Recommended WSL Setup**:
+- Install VSCode on Windows first
+- Install Remote-WSL extension
+- Open WSL terminal: `wsl` or use Windows Terminal
+- Run the installation script
+- Open your project: `code .` from WSL terminal
 
 ## Manual Installation
 
