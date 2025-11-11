@@ -680,6 +680,16 @@ configure_vscode() {
     }' "$SETTINGS_FILE" > "$TEMP_SETTINGS" && mv "$TEMP_SETTINGS" "$SETTINGS_FILE"
   fi
 
+  # Configure Shiny settings (especially important for WSL)
+  if [ "$INSTALL_R" = true ] && command_exists jq; then
+    TEMP_SETTINGS=$(mktemp)
+    # Increase timeout to 30s (default 10s) to help with WSL startup delays
+    jq '. + {
+      "shiny.previewTimeout": 30,
+      "shiny.autoLaunchPreview": true
+    }' "$SETTINGS_FILE" > "$TEMP_SETTINGS" && mv "$TEMP_SETTINGS" "$SETTINGS_FILE"
+  fi
+
   log_success "VSCode settings configured"
 }
 
