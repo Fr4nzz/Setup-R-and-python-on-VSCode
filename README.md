@@ -78,6 +78,31 @@ curl -fsSL https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode
 
 The script automatically detects WSL and guides you through the setup. See [Troubleshooting → Running in WSL](#running-in-wsl-windows-subsystem-for-linux) for details.
 
+## Google Antigravity Support
+
+This repository supports **Google Antigravity** (the new AI-first IDE based on VS Code).
+
+**Prerequisites:**
+1.  Install [Google Antigravity](https://antigravity.google.com/) manually.
+2.  Ensure you can run the `antigravity` command from your terminal (add it to your PATH if necessary).
+
+### Setup Scripts
+
+These scripts will install R/Python/Radian (if missing) and configure Antigravity to use the official Microsoft Marketplace (instead of OpenVSX) so that standard Python and R extensions work correctly.
+
+**Windows (PowerShell):**
+```powershell
+.\setup_antigravity.ps1
+```
+
+**Linux/macOS (Bash):**
+```bash
+chmod +x setup_antigravity.sh
+./setup_antigravity.sh
+```
+
+*Note: These scripts do not modify keybindings in Antigravity.*
+
 ## Command-Line Options
 
 ### Linux/macOS (install.sh)
