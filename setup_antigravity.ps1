@@ -30,9 +30,6 @@ if ($Help) {
     Write-Host @"
 Antigravity Setup Script
 Usage: .\setup_antigravity.ps1
-
-This script configures Google Antigravity to use the Microsoft Marketplace
-and sets up the R/Python environment.
 "@
     exit 0
 }
@@ -166,7 +163,7 @@ function Configure-Settings {
         }
     } catch { $settings = @{} }
 
-    # FIX MARKETPLACE (Critical for Antigravity)
+    # FIX MARKETPLACE
     $settings["extensions.gallery"] = @{
         "serviceUrl" = "https://marketplace.visualstudio.com/_apis/public/gallery";
         "cacheUrl" = "https://marketplace.visualstudio.com/_apis/public/gallery/cache";
@@ -175,7 +172,11 @@ function Configure-Settings {
 
     if ($InstallR) {
         $radianCmd = Get-Command radian -ErrorAction SilentlyContinue
-        if ($radianCmd) { $settings["r.rterm.windows"] = $radianCmd.Source -replace '\\', '\\' }
+        if ($radianCmd) { 
+            # ConvertTo-Json automatically handles the double backslash escape.
+            # We just provide the raw path.
+            $settings["r.rterm.windows"] = $radianCmd.Source 
+        }
         $settings["r.plot.useHttpgd"] = $true
         $settings["r.bracketedPaste"] = $true
         $settings["r.sessionWatcher"] = $true
@@ -183,7 +184,9 @@ function Configure-Settings {
 
     if ($InstallPython) {
         $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
-        if ($pythonCmd) { $settings["python.defaultInterpreterPath"] = $pythonCmd.Source -replace '\\', '\\' }
+        if ($pythonCmd) { 
+            $settings["python.defaultInterpreterPath"] = $pythonCmd.Source 
+        }
         $settings["python.terminal.activateEnvironment"] = $true
     }
 
@@ -200,7 +203,7 @@ function Install-Extensions {
     foreach ($ext in $extensions) {
         Write-Host "  Installing $ext... " -NoNewline
         try {
-            # Redirect StdErr to null to suppress "antigravityAnalytics" crash logs
+            # Redirect StdErr to suppress crashes/logs from the buggy CLI
             $proc = Start-Process -FilePath $EditorCmd -ArgumentList "--install-extension $ext --force" -NoNewWindow -Wait -PassThru -RedirectStandardError "$env:TEMP\ag_err.log"
             
             if ($proc.ExitCode -eq 0) { Write-Host "OK" -F Green }
