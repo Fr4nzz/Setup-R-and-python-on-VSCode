@@ -71,10 +71,6 @@ detect_system() {
 install_env() {
     log_info "Checking R and Python environment..."
     
-    # Just a basic check here. In a full implementation, you would paste
-    # the install_r and install_python functions from your install.sh here.
-    # For now, we assume the user might have them or run the main script first.
-    
     if [ "$INSTALL_R" = true ] && ! command_exists R; then
         log_error "R not found. Please run the main install.sh first or install R manually."
     fi

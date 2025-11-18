@@ -92,13 +92,12 @@ These scripts will install R/Python/Radian (if missing) and configure Antigravit
 
 **Windows (PowerShell):**
 ```powershell
-.\setup_antigravity.ps1
+irm https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/setup_antigravity.ps1 | iex
 ```
 
 **Linux/macOS (Bash):**
 ```bash
-chmod +x setup_antigravity.sh
-./setup_antigravity.sh
+curl -fsSL https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/setup_antigravity.sh | bash
 ```
 
 *Note: These scripts do not modify keybindings in Antigravity.*
