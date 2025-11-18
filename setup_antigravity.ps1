@@ -84,7 +84,6 @@ function Get-RscriptCommand {
 
 function Install-R {
     if (-not $InstallR) { return }
-    
     if (Get-Command "R.exe" -ErrorAction SilentlyContinue) { Write-Success "R is installed"; return }
     
     Write-Info "Installing R..."
@@ -102,7 +101,6 @@ function Configure-R-Packages {
     $rProfilePath = "$env:USERPROFILE\Documents\.Rprofile"
     $rProfileDir = Split-Path $rProfilePath -Parent
     if (-not (Test-Path $rProfileDir)) { New-Item -ItemType Directory -Path $rProfileDir -Force | Out-Null }
-    
     if (-not (Test-Path $rProfilePath)) {
         Set-Content -Path $rProfilePath -Value 'local({ options(repos = c(CRAN = "https://cloud.r-project.org")) })'
     }
@@ -114,11 +112,9 @@ function Install-R-Packages {
     $rscriptCmd = Get-RscriptCommand
     if (-not $rscriptCmd) { Write-Error-Msg "Rscript not found."; return }
     
-    try { 
-        $ver = & $rscriptCmd -e "cat(paste0(R.version.string))" 
-        Write-Host "  Detected: $ver" -ForegroundColor Gray
-    } catch {}
-
+    try { $ver = & $rscriptCmd -e "cat(paste0(R.version.string))"; Write-Host "  Detected: $ver" -ForegroundColor Gray } catch {}
+    
+    # Handle source vs binary for R 4.5+ to fix httpgd installation errors
     $rCode = "packages <- c('languageserver', 'httpgd', 'shiny', 'shinyWidgets'); for (pkg in packages) { if (!requireNamespace(pkg, quietly = TRUE)) { tryCatch(install.packages(pkg, repos = 'https://cloud.r-project.org', type = ifelse(.Platform`$OS.type == 'windows', 'both', 'source'), quiet = TRUE), error=function(e) cat('Failed to install', pkg, '\n')) } }"
     & $rscriptCmd -e $rCode
 }
@@ -163,20 +159,20 @@ function Configure-Settings {
         }
     } catch { $settings = @{} }
 
-    # FIX MARKETPLACE
+    # 1. Standard VS Code Extension Gallery Overrides
     $settings["extensions.gallery"] = @{
         "serviceUrl" = "https://marketplace.visualstudio.com/_apis/public/gallery";
         "cacheUrl" = "https://marketplace.visualstudio.com/_apis/public/gallery/cache";
         "itemUrl" = "https://marketplace.visualstudio.com/items"
     }
 
+    # 2. Antigravity-Specific Gallery Overrides (Explicitly set these too)
+    $settings["antigravity.marketplaceExtensionGalleryServiceURL"] = "https://marketplace.visualstudio.com/_apis/public/gallery"
+    $settings["antigravity.marketplaceGalleryItemURL"] = "https://marketplace.visualstudio.com/items"
+
     if ($InstallR) {
         $radianCmd = Get-Command radian -ErrorAction SilentlyContinue
-        if ($radianCmd) { 
-            # ConvertTo-Json automatically handles the double backslash escape.
-            # We just provide the raw path.
-            $settings["r.rterm.windows"] = $radianCmd.Source 
-        }
+        if ($radianCmd) { $settings["r.rterm.windows"] = $radianCmd.Source }
         $settings["r.plot.useHttpgd"] = $true
         $settings["r.bracketedPaste"] = $true
         $settings["r.sessionWatcher"] = $true
@@ -184,14 +180,12 @@ function Configure-Settings {
 
     if ($InstallPython) {
         $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
-        if ($pythonCmd) { 
-            $settings["python.defaultInterpreterPath"] = $pythonCmd.Source 
-        }
+        if ($pythonCmd) { $settings["python.defaultInterpreterPath"] = $pythonCmd.Source }
         $settings["python.terminal.activateEnvironment"] = $true
     }
 
     $settings | ConvertTo-Json -Depth 10 | Set-Content -Path $SettingsFile
-    Write-Success "Settings updated."
+    Write-Success "Settings updated (Marketplace Fixed)."
 }
 
 function Install-Extensions {
@@ -203,20 +197,17 @@ function Install-Extensions {
     foreach ($ext in $extensions) {
         Write-Host "  Installing $ext... " -NoNewline
         try {
-            # Redirect StdErr to suppress crashes/logs from the buggy CLI
             $proc = Start-Process -FilePath $EditorCmd -ArgumentList "--install-extension $ext --force" -NoNewWindow -Wait -PassThru -RedirectStandardError "$env:TEMP\ag_err.log"
-            
             if ($proc.ExitCode -eq 0) { Write-Host "OK" -F Green }
             else { Write-Host "FAILED (Exit Code $($proc.ExitCode))" -F Red }
         } catch {
-            Write-Host "ERROR (Execution Failed)" -F Red
+            Write-Host "ERROR" -F Red
         }
     }
 }
 
 function Main {
     if (-not (Test-Administrator)) { Write-Error-Msg "Run as Administrator required."; exit 1 }
-    
     Check-Antigravity
     Install-Chocolatey
     Install-R
@@ -224,10 +215,8 @@ function Main {
     Install-R-Packages
     Install-Radian
     Install-Python
-    
     Configure-Settings
     Install-Extensions
-
     Write-Success "Antigravity Setup Complete!"
 }
 
