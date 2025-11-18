@@ -91,13 +91,8 @@ configure_antigravity() {
 
     TMP=$(mktemp)
 
-    # 1. Inject ALL Marketplace Keys (Standard VSCode + Antigravity Specific)
-    jq '. + {
-        "extensions.gallery": {
-            "serviceUrl": "https://marketplace.visualstudio.com/_apis/public/gallery",
-            "cacheUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/cache",
-            "itemUrl": "https://marketplace.visualstudio.com/items"
-        },
+    # 1. REMOVE 'extensions.gallery' and ADD 'antigravity.marketplace...'
+    jq 'del(.["extensions.gallery"]) | . + {
         "antigravity.marketplaceExtensionGalleryServiceURL": "https://marketplace.visualstudio.com/_apis/public/gallery",
         "antigravity.marketplaceGalleryItemURL": "https://marketplace.visualstudio.com/items"
     }' "$SETTINGS_FILE" > "$TMP" && mv "$TMP" "$SETTINGS_FILE"
@@ -134,7 +129,6 @@ install_extensions() {
 
     for ext in "${EXTS[@]}"; do
         log_info "Installing $ext..."
-        # Redirect stdout/stderr to hide "antigravityAnalytics" crash logs
         $EDITOR_CMD --install-extension "$ext" --force >/dev/null 2>&1 || true
     done
 }

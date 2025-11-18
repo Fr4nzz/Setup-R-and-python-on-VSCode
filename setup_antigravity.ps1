@@ -114,7 +114,6 @@ function Install-R-Packages {
     
     try { $ver = & $rscriptCmd -e "cat(paste0(R.version.string))"; Write-Host "  Detected: $ver" -ForegroundColor Gray } catch {}
     
-    # Handle source vs binary for R 4.5+ to fix httpgd installation errors
     $rCode = "packages <- c('languageserver', 'httpgd', 'shiny', 'shinyWidgets'); for (pkg in packages) { if (!requireNamespace(pkg, quietly = TRUE)) { tryCatch(install.packages(pkg, repos = 'https://cloud.r-project.org', type = ifelse(.Platform`$OS.type == 'windows', 'both', 'source'), quiet = TRUE), error=function(e) cat('Failed to install', pkg, '\n')) } }"
     & $rscriptCmd -e $rCode
 }
@@ -159,14 +158,13 @@ function Configure-Settings {
         }
     } catch { $settings = @{} }
 
-    # 1. Standard VS Code Extension Gallery Overrides
-    $settings["extensions.gallery"] = @{
-        "serviceUrl" = "https://marketplace.visualstudio.com/_apis/public/gallery";
-        "cacheUrl" = "https://marketplace.visualstudio.com/_apis/public/gallery/cache";
-        "itemUrl" = "https://marketplace.visualstudio.com/items"
+    # 1. REMOVE Standard VS Code Gallery (Conflict Fix)
+    if ($settings.ContainsKey("extensions.gallery")) {
+        $settings.Remove("extensions.gallery")
+        Write-Host "  Removed conflicting 'extensions.gallery' setting." -ForegroundColor Yellow
     }
 
-    # 2. Antigravity-Specific Gallery Overrides (Explicitly set these too)
+    # 2. Add Antigravity-Specific Gallery Overrides
     $settings["antigravity.marketplaceExtensionGalleryServiceURL"] = "https://marketplace.visualstudio.com/_apis/public/gallery"
     $settings["antigravity.marketplaceGalleryItemURL"] = "https://marketplace.visualstudio.com/items"
 
@@ -185,7 +183,7 @@ function Configure-Settings {
     }
 
     $settings | ConvertTo-Json -Depth 10 | Set-Content -Path $SettingsFile
-    Write-Success "Settings updated (Marketplace Fixed)."
+    Write-Success "Settings updated."
 }
 
 function Install-Extensions {
