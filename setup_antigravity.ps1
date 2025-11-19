@@ -138,64 +138,81 @@ function Check-Antigravity {
     }
 }
 
-function Configure-Settings {
-    Write-Info "Configuring Settings ($SettingsFile)..."
-    if (-not (Test-Path $SettingsDir)) { New-Item -ItemType Directory -Path $SettingsDir -Force | Out-Null }
-    if (-not (Test-Path $SettingsFile)) { Set-Content -Path $SettingsFile -Value '{}' }
-
-    try {
-        $json = Get-Content $SettingsFile -Raw
-        if ($PSVersionTable.PSVersion.Major -ge 6) { $settings = $json | ConvertFrom-Json -AsHashtable } 
-        else { 
-            $settings = @{}
-            ($json | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $settings[$_.Name] = $_.Value }
-        }
-    } catch { $settings = @{} }
-
-    # 1. REMOVE standard VS Code Gallery (This causes the "Old Version" bug)
-    if ($settings.ContainsKey("extensions.gallery")) {
-        $settings.Remove("extensions.gallery")
-        Write-Host "  Removed conflicting 'extensions.gallery' setting." -ForegroundColor Yellow
+function Set-Settings-For-Install {
+    # INJECT standard 'extensions.gallery' so CLI works
+    param($json)
+    $json["extensions.gallery"] = @{
+        "serviceUrl" = "https://marketplace.visualstudio.com/_apis/public/gallery";
+        "cacheUrl" = "https://marketplace.visualstudio.com/_apis/public/gallery/cache";
+        "itemUrl" = "https://marketplace.visualstudio.com/items"
     }
+    return $json
+}
 
-    # 2. ADD Antigravity-Specific Gallery Overrides (This enables 2025 versions)
-    $settings["antigravity.marketplaceExtensionGalleryServiceURL"] = "https://marketplace.visualstudio.com/_apis/public/gallery"
-    $settings["antigravity.marketplaceGalleryItemURL"] = "https://marketplace.visualstudio.com/items"
+function Set-Settings-For-Runtime {
+    # REMOVE 'extensions.gallery' and USE 'antigravity' keys so UI works
+    param($json)
+    if ($json.ContainsKey("extensions.gallery")) { $json.Remove("extensions.gallery") }
+    
+    $json["antigravity.marketplaceExtensionGalleryServiceURL"] = "https://marketplace.visualstudio.com/_apis/public/gallery"
+    $json["antigravity.marketplaceGalleryItemURL"] = "https://marketplace.visualstudio.com/items"
 
+    # Paths
     if ($InstallR) {
         $radianCmd = Get-Command radian -ErrorAction SilentlyContinue
-        if ($radianCmd) { $settings["r.rterm.windows"] = $radianCmd.Source }
-        $settings["r.plot.useHttpgd"] = $true
-        $settings["r.bracketedPaste"] = $true
-        $settings["r.sessionWatcher"] = $true
+        if ($radianCmd) { $json["r.rterm.windows"] = $radianCmd.Source }
+        $json["r.plot.useHttpgd"] = $true
+        $json["r.bracketedPaste"] = $true
+        $json["r.sessionWatcher"] = $true
     }
-
     if ($InstallPython) {
         $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
-        if ($pythonCmd) { $settings["python.defaultInterpreterPath"] = $pythonCmd.Source }
-        $settings["python.terminal.activateEnvironment"] = $true
+        if ($pythonCmd) { $json["python.defaultInterpreterPath"] = $pythonCmd.Source }
+        $json["python.terminal.activateEnvironment"] = $true
     }
+    return $json
+}
+
+function Update-SettingsFile {
+    param($Mode)
+    if (-not (Test-Path $SettingsDir)) { New-Item -ItemType Directory -Path $SettingsDir -Force | Out-Null }
+    if (-not (Test-Path $SettingsFile)) { Set-Content -Path $SettingsFile -Value '{}' }
+    
+    try {
+        $raw = Get-Content $SettingsFile -Raw
+        if ($PSVersionTable.PSVersion.Major -ge 6) { $settings = $raw | ConvertFrom-Json -AsHashtable } 
+        else { $settings = @{}; ($raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $settings[$_.Name] = $_.Value } }
+    } catch { $settings = @{} }
+
+    if ($Mode -eq "INSTALL") { $settings = Set-Settings-For-Install $settings }
+    else { $settings = Set-Settings-For-Runtime $settings }
 
     $settings | ConvertTo-Json -Depth 10 | Set-Content -Path $SettingsFile
-    Write-Success "Settings updated."
 }
 
 function Install-Extensions {
-    Write-Info "Attempting to install extensions..."
+    Write-Info "Temporarily enabling CLI Marketplace..."
+    Update-SettingsFile -Mode "INSTALL"
+
+    Write-Info "Installing Extensions (Pinned to 2025)..."
     $extensions = @()
-    if ($InstallR) { $extensions += @("REditorSupport.r", "RDebugger.r-debugger", "Posit.shiny") }
-    if ($InstallPython) { $extensions += @("ms-python.python", "ms-toolsai.jupyter") }
+    
+    if ($InstallR) { 
+        $extensions += @("REditorSupport.r", "RDebugger.r-debugger", "Posit.shiny") 
+    }
+    
+    if ($InstallPython) { 
+        # FORCE 2025 VERSIONS: We know these work manually. CLI needs to be forced.
+        $extensions += @("ms-python.python@2025.18.0", "ms-toolsai.jupyter@2025.8.0") 
+    }
 
     foreach ($ext in $extensions) {
         Write-Host "  Installing $ext... " -NoNewline
         try {
-            # Standard install (will pull Latest/2025 versions now that Marketplace is correct)
             $proc = Start-Process -FilePath $EditorCmd -ArgumentList "--install-extension $ext --force" -NoNewWindow -Wait -PassThru -RedirectStandardError "$env:TEMP\ag_err.log"
             if ($proc.ExitCode -eq 0) { Write-Host "OK" -F Green }
-            else { Write-Host "FAILED (Exit Code $($proc.ExitCode))" -F Red }
-        } catch {
-            Write-Host "ERROR" -F Red
-        }
+            else { Write-Host "FAILED" -F Red }
+        } catch { Write-Host "ERROR" -F Red }
     }
 }
 
@@ -208,8 +225,12 @@ function Main {
     Install-R-Packages
     Install-Radian
     Install-Python
-    Configure-Settings
+    
     Install-Extensions
+    
+    Write-Info "Applying Final UI Settings..."
+    Update-SettingsFile -Mode "RUNTIME"
+    
     Write-Success "Antigravity Setup Complete!"
 }
 
