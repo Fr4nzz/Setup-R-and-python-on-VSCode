@@ -85,11 +85,9 @@ function Get-RscriptCommand {
 function Install-R {
     if (-not $InstallR) { return }
     if (Get-Command "R.exe" -ErrorAction SilentlyContinue) { Write-Success "R is installed"; return }
-    
     Write-Info "Installing R..."
     choco install r.project -y
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-    
     if (-not (Test-Command Rscript)) {
         $rBinPath = Find-R
         if ($rBinPath) { $script:RBinPath = $rBinPath; Write-Success "R found manually." }
@@ -101,9 +99,7 @@ function Configure-R-Packages {
     $rProfilePath = "$env:USERPROFILE\Documents\.Rprofile"
     $rProfileDir = Split-Path $rProfilePath -Parent
     if (-not (Test-Path $rProfileDir)) { New-Item -ItemType Directory -Path $rProfileDir -Force | Out-Null }
-    if (-not (Test-Path $rProfilePath)) {
-        Set-Content -Path $rProfilePath -Value 'local({ options(repos = c(CRAN = "https://cloud.r-project.org")) })'
-    }
+    if (-not (Test-Path $rProfilePath)) { Set-Content -Path $rProfilePath -Value 'local({ options(repos = c(CRAN = "https://cloud.r-project.org")) })' }
 }
 
 function Install-R-Packages {
@@ -111,9 +107,7 @@ function Install-R-Packages {
     Write-Info "Installing R packages..."
     $rscriptCmd = Get-RscriptCommand
     if (-not $rscriptCmd) { Write-Error-Msg "Rscript not found."; return }
-    
     try { $ver = & $rscriptCmd -e "cat(paste0(R.version.string))"; Write-Host "  Detected: $ver" -ForegroundColor Gray } catch {}
-    
     $rCode = "packages <- c('languageserver', 'httpgd', 'shiny', 'shinyWidgets'); for (pkg in packages) { if (!requireNamespace(pkg, quietly = TRUE)) { tryCatch(install.packages(pkg, repos = 'https://cloud.r-project.org', type = ifelse(.Platform`$OS.type == 'windows', 'both', 'source'), quiet = TRUE), error=function(e) cat('Failed to install', pkg, '\n')) } }"
     & $rscriptCmd -e $rCode
 }
@@ -158,13 +152,13 @@ function Configure-Settings {
         }
     } catch { $settings = @{} }
 
-    # 1. REMOVE Standard VS Code Gallery (Conflict Fix)
+    # 1. REMOVE standard VS Code Gallery (This causes the "Old Version" bug)
     if ($settings.ContainsKey("extensions.gallery")) {
         $settings.Remove("extensions.gallery")
         Write-Host "  Removed conflicting 'extensions.gallery' setting." -ForegroundColor Yellow
     }
 
-    # 2. Add Antigravity-Specific Gallery Overrides
+    # 2. ADD Antigravity-Specific Gallery Overrides (This enables 2025 versions)
     $settings["antigravity.marketplaceExtensionGalleryServiceURL"] = "https://marketplace.visualstudio.com/_apis/public/gallery"
     $settings["antigravity.marketplaceGalleryItemURL"] = "https://marketplace.visualstudio.com/items"
 
@@ -195,6 +189,7 @@ function Install-Extensions {
     foreach ($ext in $extensions) {
         Write-Host "  Installing $ext... " -NoNewline
         try {
+            # Standard install (will pull Latest/2025 versions now that Marketplace is correct)
             $proc = Start-Process -FilePath $EditorCmd -ArgumentList "--install-extension $ext --force" -NoNewWindow -Wait -PassThru -RedirectStandardError "$env:TEMP\ag_err.log"
             if ($proc.ExitCode -eq 0) { Write-Host "OK" -F Green }
             else { Write-Host "FAILED (Exit Code $($proc.ExitCode))" -F Red }

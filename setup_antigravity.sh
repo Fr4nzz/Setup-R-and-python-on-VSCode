@@ -61,7 +61,6 @@ detect_system() {
   if [[ "$OS" == "Linux"* ]]; then
     if [ -f /etc/os-release ]; then . /etc/os-release; DISTRO="$ID"; DISTRO_CODENAME="${VERSION_CODENAME:-}"; fi
     OS_TYPE="linux"
-    # Simple architecture fix for apt
     if [ "$ARCH" = "aarch64" ]; then ARCH_TYPE="arm64"; else ARCH_TYPE="x86_64"; fi
   else
     OS_TYPE="macos"
@@ -70,7 +69,6 @@ detect_system() {
 
 install_env() {
     log_info "Checking R and Python environment..."
-    
     if [ "$INSTALL_R" = true ] && ! command_exists R; then
         log_error "R not found. Please run the main install.sh first or install R manually."
     fi
@@ -84,20 +82,18 @@ install_env() {
 configure_antigravity() {
     log_info "Configuring Antigravity settings..."
     mkdir -p "$SETTINGS_DIR"
-    
     if [ ! -f "$SETTINGS_FILE" ]; then echo '{}' > "$SETTINGS_FILE"; fi
-
     if ! command_exists jq; then log_error "jq is required for this script."; exit 1; fi
 
     TMP=$(mktemp)
 
-    # 1. REMOVE 'extensions.gallery' and ADD 'antigravity.marketplace...'
+    # 1. Remove 'extensions.gallery' (Conflict)
+    # 2. Add 'antigravity.marketplace...' (Success)
     jq 'del(.["extensions.gallery"]) | . + {
         "antigravity.marketplaceExtensionGalleryServiceURL": "https://marketplace.visualstudio.com/_apis/public/gallery",
         "antigravity.marketplaceGalleryItemURL": "https://marketplace.visualstudio.com/items"
     }' "$SETTINGS_FILE" > "$TMP" && mv "$TMP" "$SETTINGS_FILE"
 
-    # 2. R Settings
     if [ "$INSTALL_R" = true ]; then
         RADIAN=$(command -v radian || echo "")
         jq --arg radian "$RADIAN" '. + {
@@ -109,7 +105,6 @@ configure_antigravity() {
         }' "$SETTINGS_FILE" > "$TMP" && mv "$TMP" "$SETTINGS_FILE"
     fi
 
-    # 3. Python Settings
     if [ "$INSTALL_PYTHON" = true ]; then
         PY=$(command -v python3)
         jq --arg py "$PY" '. + {
@@ -137,7 +132,7 @@ main() {
     detect_system
     check_editor
     install_env
-    configure_antigravity # Config first to fix marketplace
+    configure_antigravity
     install_extensions
     log_success "Antigravity Setup Complete."
 }
