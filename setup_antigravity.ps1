@@ -41,6 +41,7 @@ $InstallRadian = -not $SkipRadian
 function Write-Info { param([string]$Msg) Write-Host "[INFO] $Msg" -ForegroundColor Blue }
 function Write-Success { param([string]$Msg) Write-Host "[SUCCESS] $Msg" -ForegroundColor Green }
 function Write-Error-Msg { param([string]$Msg) Write-Host "[ERROR] $Msg" -ForegroundColor Red }
+function Write-Warn { param([string]$Msg) Write-Host "[WARN] $Msg" -ForegroundColor Yellow }
 
 function Test-Administrator {
     $user = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -138,82 +139,107 @@ function Check-Antigravity {
     }
 }
 
-function Set-Settings-For-Install {
-    # INJECT standard 'extensions.gallery' so CLI works
-    param($json)
-    $json["extensions.gallery"] = @{
-        "serviceUrl" = "https://marketplace.visualstudio.com/_apis/public/gallery";
-        "cacheUrl" = "https://marketplace.visualstudio.com/_apis/public/gallery/cache";
-        "itemUrl" = "https://marketplace.visualstudio.com/items"
-    }
-    return $json
-}
-
-function Set-Settings-For-Runtime {
-    # REMOVE 'extensions.gallery' and USE 'antigravity' keys so UI works
-    param($json)
-    if ($json.ContainsKey("extensions.gallery")) { $json.Remove("extensions.gallery") }
-    
-    $json["antigravity.marketplaceExtensionGalleryServiceURL"] = "https://marketplace.visualstudio.com/_apis/public/gallery"
-    $json["antigravity.marketplaceGalleryItemURL"] = "https://marketplace.visualstudio.com/items"
-
-    # Paths
-    if ($InstallR) {
-        $radianCmd = Get-Command radian -ErrorAction SilentlyContinue
-        if ($radianCmd) { $json["r.rterm.windows"] = $radianCmd.Source }
-        $json["r.plot.useHttpgd"] = $true
-        $json["r.bracketedPaste"] = $true
-        $json["r.sessionWatcher"] = $true
-    }
-    if ($InstallPython) {
-        $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
-        if ($pythonCmd) { $json["python.defaultInterpreterPath"] = $pythonCmd.Source }
-        $json["python.terminal.activateEnvironment"] = $true
-    }
-    return $json
-}
-
 function Update-SettingsFile {
-    param($Mode)
+    param($Mode) # "STANDARD" (Google keys only) or "HACK" (Inject extensions.gallery)
+    
     if (-not (Test-Path $SettingsDir)) { New-Item -ItemType Directory -Path $SettingsDir -Force | Out-Null }
     if (-not (Test-Path $SettingsFile)) { Set-Content -Path $SettingsFile -Value '{}' }
-    
+
     try {
-        $raw = Get-Content $SettingsFile -Raw
-        if ($PSVersionTable.PSVersion.Major -ge 6) { $settings = $raw | ConvertFrom-Json -AsHashtable } 
-        else { $settings = @{}; ($raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $settings[$_.Name] = $_.Value } }
+        $json = Get-Content $SettingsFile -Raw
+        if ($PSVersionTable.PSVersion.Major -ge 6) { $settings = $json | ConvertFrom-Json -AsHashtable } 
+        else { 
+            $settings = @{}
+            ($json | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $settings[$_.Name] = $_.Value }
+        }
     } catch { $settings = @{} }
 
-    if ($Mode -eq "INSTALL") { $settings = Set-Settings-For-Install $settings }
-    else { $settings = Set-Settings-For-Runtime $settings }
+    # ALWAYS set the correct Google Antigravity keys
+    $settings["antigravity.marketplaceExtensionGalleryServiceURL"] = "https://marketplace.visualstudio.com/_apis/public/gallery"
+    $settings["antigravity.marketplaceGalleryItemURL"] = "https://marketplace.visualstudio.com/items"
+
+    # Handle the "Swap" Logic
+    if ($Mode -eq "HACK") {
+        # Inject standard key so dumb CLI can see Microsoft Marketplace
+        $settings["extensions.gallery"] = @{
+            "serviceUrl" = "https://marketplace.visualstudio.com/_apis/public/gallery";
+            "cacheUrl" = "https://marketplace.visualstudio.com/_apis/public/gallery/cache";
+            "itemUrl" = "https://marketplace.visualstudio.com/items"
+        }
+    } elseif ($settings.ContainsKey("extensions.gallery")) {
+        # Remove standard key to prevent UI conflicts
+        $settings.Remove("extensions.gallery")
+    }
+
+    # Path Configuration
+    if ($InstallR) {
+        $radianCmd = Get-Command radian -ErrorAction SilentlyContinue
+        if ($radianCmd) { $settings["r.rterm.windows"] = $radianCmd.Source }
+        $settings["r.plot.useHttpgd"] = $true
+        $settings["r.bracketedPaste"] = $true
+        $settings["r.sessionWatcher"] = $true
+    }
+
+    if ($InstallPython) {
+        $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+        if ($pythonCmd) { $settings["python.defaultInterpreterPath"] = $pythonCmd.Source }
+        $settings["python.terminal.activateEnvironment"] = $true
+    }
 
     $settings | ConvertTo-Json -Depth 10 | Set-Content -Path $SettingsFile
 }
 
-function Install-Extensions {
-    Write-Info "Temporarily enabling CLI Marketplace..."
-    Update-SettingsFile -Mode "INSTALL"
-
-    Write-Info "Installing Extensions (Pinned to 2025)..."
-    $extensions = @()
-    
-    if ($InstallR) { 
-        $extensions += @("REditorSupport.r", "RDebugger.r-debugger", "Posit.shiny") 
+function Run-Extension-Install {
+    param($ext)
+    try {
+        $proc = Start-Process -FilePath $EditorCmd -ArgumentList "--install-extension $ext --force" -NoNewWindow -Wait -PassThru -RedirectStandardError "$env:TEMP\ag_err.log"
+        return $proc.ExitCode
+    } catch {
+        return 1
     }
+}
+
+function Install-Extensions {
+    Write-Info "Setting up Marketplace Configuration..."
     
+    # 1. Try the "Correct" way first (Google Settings only)
+    Update-SettingsFile -Mode "STANDARD"
+
+    $extensions = @()
+    if ($InstallR) { $extensions += @("REditorSupport.r", "RDebugger.r-debugger", "Posit.shiny") }
     if ($InstallPython) { 
-        # FORCE 2025 VERSIONS: We know these work manually. CLI needs to be forced.
+        # Note: We use the latest versions here. The environment check handles compatibility.
         $extensions += @("ms-python.python@2025.18.0", "ms-toolsai.jupyter@2025.8.0") 
     }
 
+    $hackEnabled = $false
+
     foreach ($ext in $extensions) {
         Write-Host "  Installing $ext... " -NoNewline
-        try {
-            $proc = Start-Process -FilePath $EditorCmd -ArgumentList "--install-extension $ext --force" -NoNewWindow -Wait -PassThru -RedirectStandardError "$env:TEMP\ag_err.log"
-            if ($proc.ExitCode -eq 0) { Write-Host "OK" -F Green }
-            else { Write-Host "FAILED" -F Red }
-        } catch { Write-Host "ERROR" -F Red }
+        
+        # Attempt 1: Install with current settings
+        $exitCode = Run-Extension-Install $ext
+        
+        if ($exitCode -ne 0 -and -not $hackEnabled) {
+            # FAILURE DETECTED: The CLI likely didn't respect the Google keys.
+            Write-Host "RETRYING (Swap Mode)" -F Yellow
+            
+            # Enable "Hack Mode": Inject standard VS Code keys
+            Update-SettingsFile -Mode "HACK"
+            $hackEnabled = $true
+            
+            # Attempt 2: Install with Hack settings
+            $exitCode = Run-Extension-Install $ext
+        }
+
+        if ($exitCode -eq 0) { Write-Host "OK" -F Green }
+        else { Write-Host "FAILED" -F Red }
     }
+
+    # Final Cleanup: Ensure we are back to STANDARD mode so UI doesn't break
+    Write-Info "Finalizing Configuration..."
+    Update-SettingsFile -Mode "STANDARD"
+    Write-Success "Antigravity Configured."
 }
 
 function Main {
@@ -226,10 +252,7 @@ function Main {
     Install-Radian
     Install-Python
     
-    Install-Extensions
-    
-    Write-Info "Applying Final UI Settings..."
-    Update-SettingsFile -Mode "RUNTIME"
+    Install-Extensions # Now handles the settings logic internally
     
     Write-Success "Antigravity Setup Complete!"
 }

@@ -21,6 +21,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 NC='\033[0m'
+YELLOW='\033[1;33m'
 
 # Defaults
 INSTALL_R=true
@@ -42,6 +43,7 @@ done
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 
 command_exists() { command -v "$1" >/dev/null 2>&1; }
 
@@ -79,21 +81,35 @@ install_env() {
 
 # --- ANTIGRAVITY CONFIG ---
 
-configure_antigravity() {
-    log_info "Configuring Antigravity settings..."
+configure_settings() {
+    MODE="$1" # "STANDARD" or "HACK"
     mkdir -p "$SETTINGS_DIR"
     if [ ! -f "$SETTINGS_FILE" ]; then echo '{}' > "$SETTINGS_FILE"; fi
     if ! command_exists jq; then log_error "jq is required for this script."; exit 1; fi
 
     TMP=$(mktemp)
+    
+    # 1. Always set Antigravity Keys + Paths
+    # 2. If HACK mode, add extensions.gallery. If STANDARD, remove it.
+    
+    if [ "$MODE" == "HACK" ]; then
+        # Add standard keys (Hack Mode)
+        jq '. + {
+            "extensions.gallery": {
+                "serviceUrl": "https://marketplace.visualstudio.com/_apis/public/gallery",
+                "cacheUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/cache",
+                "itemUrl": "https://marketplace.visualstudio.com/items"
+            }
+        }' "$SETTINGS_FILE" > "$TMP" && mv "$TMP" "$SETTINGS_FILE"
+    else
+        # Remove standard keys (Standard Mode)
+        jq 'del(.["extensions.gallery"]) | . + {
+            "antigravity.marketplaceExtensionGalleryServiceURL": "https://marketplace.visualstudio.com/_apis/public/gallery",
+            "antigravity.marketplaceGalleryItemURL": "https://marketplace.visualstudio.com/items"
+        }' "$SETTINGS_FILE" > "$TMP" && mv "$TMP" "$SETTINGS_FILE"
+    fi
 
-    # 1. Remove 'extensions.gallery' (Conflict)
-    # 2. Add 'antigravity.marketplace...' (Success)
-    jq 'del(.["extensions.gallery"]) | . + {
-        "antigravity.marketplaceExtensionGalleryServiceURL": "https://marketplace.visualstudio.com/_apis/public/gallery",
-        "antigravity.marketplaceGalleryItemURL": "https://marketplace.visualstudio.com/items"
-    }' "$SETTINGS_FILE" > "$TMP" && mv "$TMP" "$SETTINGS_FILE"
-
+    # Apply paths (idempotent)
     if [ "$INSTALL_R" = true ]; then
         RADIAN=$(command -v radian || echo "")
         jq --arg radian "$RADIAN" '. + {
@@ -112,27 +128,45 @@ configure_antigravity() {
             "python.terminal.activateEnvironment": true
         }' "$SETTINGS_FILE" > "$TMP" && mv "$TMP" "$SETTINGS_FILE"
     fi
-    
-    log_success "Settings updated."
 }
 
 install_extensions() {
-    log_info "Installing Extensions..."
+    log_info "Configuring Marketplace..."
+    configure_settings "STANDARD"
+
     EXTS=()
     if [ "$INSTALL_R" = true ]; then EXTS+=("REditorSupport.r" "Posit.shiny" "RDebugger.r-debugger"); fi
-    if [ "$INSTALL_PYTHON" = true ]; then EXTS+=("ms-python.python" "ms-toolsai.jupyter"); fi
+    if [ "$INSTALL_PYTHON" = true ]; then EXTS+=("ms-python.python@2025.18.0" "ms-toolsai.jupyter@2025.8.0"); fi
+
+    HACK_ACTIVE=false
 
     for ext in "${EXTS[@]}"; do
         log_info "Installing $ext..."
-        $EDITOR_CMD --install-extension "$ext" --force >/dev/null 2>&1 || true
+        
+        # Attempt 1
+        if $EDITOR_CMD --install-extension "$ext" --force >/dev/null 2>&1; then
+             : # Success
+        else
+             # Failure detected, enable hack if not already active
+             if [ "$HACK_ACTIVE" = false ]; then
+                 log_warn "CLI failed to find extension. Retrying with compatibility hack..."
+                 configure_settings "HACK"
+                 HACK_ACTIVE=true
+             fi
+             # Attempt 2 (With Hack)
+             $EDITOR_CMD --install-extension "$ext" --force >/dev/null 2>&1 || true
+        fi
     done
+    
+    log_info "Finalizing Settings..."
+    configure_settings "STANDARD"
+    log_success "Settings updated."
 }
 
 main() {
     detect_system
     check_editor
     install_env
-    configure_antigravity
     install_extensions
     log_success "Antigravity Setup Complete."
 }
