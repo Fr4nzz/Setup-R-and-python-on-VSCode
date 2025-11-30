@@ -60,10 +60,12 @@ irm https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/i
 **With Options**:
 ```powershell
 irm https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/install.ps1 -OutFile install.ps1
-.\install.ps1 -ROnly
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -ROnly
 # or
-.\install.ps1 -PythonOnly
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -PythonOnly
 ```
+
+> **Note**: If you get an error like *"running scripts is disabled on this system"*, see [Troubleshooting → PowerShell Execution Policy](#powershell-execution-policy-error-windows).
 
 ### WSL (Windows Subsystem for Linux)
 
@@ -90,10 +92,12 @@ This repository supports **Google Antigravity** (the new AI-first IDE based on V
 
 These scripts will install R/Python/Radian (if missing) and configure Antigravity to use the official Microsoft Marketplace (instead of OpenVSX) so that standard Python and R extensions work correctly.
 
-**Windows (PowerShell):**
+**Windows (PowerShell as Administrator):**
 ```powershell
 irm https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/setup_antigravity.ps1 | iex
 ```
+
+> **Note**: If you get an execution policy error, see [Troubleshooting → PowerShell Execution Policy](#powershell-execution-policy-error-windows).
 
 **Linux/macOS (Bash):**
 ```bash
@@ -254,6 +258,47 @@ Benefits:
 - Shared dependencies with system packages
 
 ## Troubleshooting
+
+### PowerShell Execution Policy Error (Windows)
+
+If you get an error like:
+> *"File cannot be loaded because running scripts is disabled on this system"*
+
+This is due to PowerShell's default security policy. Here are your options:
+
+**Option 1: Use the one-liner (recommended)**
+
+The `irm | iex` command bypasses execution policy automatically:
+```powershell
+irm https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/install.ps1 | iex
+```
+
+**Option 2: Bypass policy for a single script**
+
+If you need to run the downloaded script with options:
+```powershell
+irm https://raw.githubusercontent.com/Fr4nzz/Setup-R-and-python-on-VSCode/main/install.ps1 -OutFile install.ps1
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+**Option 3: Change policy for current user (persistent)**
+
+Allow scripts from the internet that are signed or from trusted sources:
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+Then run the script normally:
+```powershell
+.\install.ps1
+```
+
+**Option 4: Unblock the downloaded file**
+
+Right-click the downloaded `.ps1` file → Properties → Check "Unblock" → OK. Or use PowerShell:
+```powershell
+Unblock-File -Path .\install.ps1
+.\install.ps1
+```
 
 ### Shiny Apps Not Running with Play Button
 
